@@ -131,6 +131,14 @@ sum_board=$(shasum < "$B/board.md")
   && ok "write-path guards: unknown verb 400, traversal key 400, newline can't smuggle a second command, board.md untouched" \
   || no "write guards" "verb=$c1 key=$c2 injected-lines=$inj"
 
+# 5e — per-ticket chat contract: an `ask` queues via /api/inbox; the loop's chat.md
+#      transcription is served back by /api/ticket (the drawer thread's data source)
+curl -s -X POST -d '{"verb":"ask","key":"T-100","text":"why is this parked?"}' "$U/api/inbox" >/dev/null
+printf '**you** ‹Sat›\nwhy is this parked?\n\n**loop** ‹Sat›\nwaiting on the plan gate.\n' > "$B/tickets/T-100/chat.md"
+ok1=$(grep -c "ask T-100 why is this parked?" "$B/inbox.md")
+ok2=$(curl -sf "$U/api/ticket/T-100" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(1 if "waiting on the plan gate" in d["files"].get("chat.md","") else 0)')
+{ [ "$ok1" -ge 1 ] && [ "$ok2" = 1 ]; } && ok "chat contract: ask → inbox line; loop-written chat.md served to the drawer" || no "chat contract" "ask=$ok1 chatserved=$ok2"
+
 # 6 — SSE live update: a board.md change pushes an event within ~2s
 SSE=$(mktemp)
 curl -sN --max-time 6 "$U/events" > "$SSE" &

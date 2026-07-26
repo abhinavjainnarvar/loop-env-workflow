@@ -37,7 +37,8 @@
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .colempty{font-family:var(--mono);font-size:11px;color:var(--faint);border:1px dashed var(--line);border-radius:9px;padding:14px;text-align:center}
   .meta{display:flex;flex-wrap:wrap;gap:5px}
-  .pill{font-family:var(--mono);font-size:10px;padding:2.5px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .pill{font-family:var(--mono);font-size:10px;padding:2.5px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);
+    white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis} /* a long state must ellipsize, never escape the card */
   .pill.amber{color:var(--amber);border-color:var(--amber-line);background:var(--amber-dim)}
   .pill.blue{color:var(--blue);border-color:var(--blue-line);background:var(--blue-dim)}
   .pill.green{color:var(--green);border-color:var(--green-line);background:var(--green-dim)}
@@ -82,6 +83,26 @@
   .mdview th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:#0e1420}
   .rawtoggle{margin-left:auto;align-self:center;font-family:var(--mono);font-size:10px;color:var(--faint);cursor:pointer;padding:4px 9px;border:1px solid var(--line);border-radius:5px}
   .rawtoggle.on{color:var(--amber);border-color:var(--amber-line)}
+  /* dev-cycle timeline */
+  .ev{position:relative;padding:0 0 18px 22px;border-left:1px solid var(--line);margin-left:6px}
+  .ev:last-child{border-left-color:transparent}
+  .ev::before{content:"";position:absolute;left:-5px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--panel2);border:2px solid var(--line)}
+  .ev.ok::before{background:var(--green);border-color:var(--green-line)}
+  .ev.warn::before{background:var(--amber);border-color:var(--amber-line)}
+  .ev.bad::before{background:var(--red);border-color:var(--red-line)}
+  .ev .et{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .ev .ed{font-size:13px;margin-top:3px;line-height:1.5}
+  .ev .er{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px}
+  /* per-ticket chat */
+  .chat{display:flex;flex-direction:column;gap:10px;max-width:64ch}
+  .msg{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;line-height:1.55;background:var(--panel2)}
+  .msg.you{background:var(--amber-dim);border-color:var(--amber-line);align-self:flex-end;max-width:85%}
+  .msg.loop{align-self:flex-start;max-width:85%}
+  .msg .who{font-family:var(--mono);font-size:10px;color:var(--faint);margin-bottom:4px}
+  .msg.you .who{color:var(--amber)}
+  .chatin{display:flex;gap:9px;margin-top:14px;position:sticky;bottom:0;background:var(--panel);padding:8px 0}
+  .chatin textarea{flex:1;background:#0e1420;border:1px solid var(--line);border-radius:8px;padding:9px 11px;color:var(--ink);font:13px/1.5 inherit;min-height:40px;resize:vertical}
+  .chathint{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px}
   .empty{color:var(--faint);font-family:var(--mono);font-size:12px;padding:30px;text-align:center}
   /* message-the-board modal */
   .btn{font-family:var(--mono);font-size:12px;padding:6px 13px;border-radius:7px;border:1px solid var(--amber-line);background:var(--amber);color:#1a1206;font-weight:600;cursor:pointer}
@@ -247,16 +268,57 @@ function md(src){
 
 // drawer: the ticket's own files, verbatim — rendered (raw toggle available)
 let dfiles = {}, rawMode = false, curFile = null;
+// cycle.md rows are ` · `-separated ledger lines: ts · role · agent · scope · conclusion
+function renderCycle(src){
+  const evs = (src ?? "").split("\n").filter(l => l.trim() && !l.startsWith("#"));
+  if (!evs.length) return `<div class="empty">no dev-cycle entries yet</div>`;
+  return evs.map(l => {
+    const parts = l.replace(/^[-*]\s*/, "").split("·").map(s => s.trim());
+    const [ts, role, agent, scope, concl] = [parts[0], parts[1] ?? "", parts[2] ?? "", parts.slice(3, -1).join(" · "), parts.at(-1) ?? ""];
+    const tone2 = /conclud|done|merged|green/i.test(concl) ? "ok" : /halt|block|fail|reject/i.test(concl) ? "bad" : /gate|parked|await|human/i.test(concl) ? "warn" : "";
+    return `<div class="ev ${tone2}"><div class="et">${esc(ts)}</div><div class="ed">${esc(scope || concl)}</div><div class="er">${esc([role, agent, concl].filter(Boolean).join(" · "))}</div></div>`;
+  }).join("");
+}
+// chat.md thread: `**you** ‹ts›` / `**loop** ‹ts›` turn headers, transcribed by the loop
+function renderChat(src){
+  const turns = [];
+  let cur = null;
+  for (const l of (src ?? "").split("\n")){
+    const m = l.match(/^\*\*(you|loop)\*\*\s*‹([^›]*)›/);
+    if (m){ cur = { who: m[1], ts: m[2], text: [] }; turns.push(cur); continue; }
+    if (cur && l.trim()) cur.text.push(l);
+  }
+  const thread = turns.map(t =>
+    `<div class="msg ${t.who}"><div class="who">${t.who === "you" ? "you" : "⟳ loop"} · ${esc(t.ts)}</div>${md(t.text.join("\n"))}</div>`).join("");
+  return `<div class="chat">${thread || '<div class="empty">no messages yet — ask the loop about this ticket</div>'}</div>
+    <div class="chatin"><textarea id="chattext" placeholder="ask about this ticket… (queues an 'ask ${esc(dkeySlug())}' command — the loop answers on its next wake)"></textarea>
+    <button class="btn" onclick="sendAsk()">Ask</button></div>
+    <div class="chathint">explicit ask verb via the inbox — never a gate; the loop transcribes Q&amp;A into chat.md</div>`;
+}
+function dkeySlug(){ return (document.getElementById("dkey").textContent || "").split(" ")[0]; }
+async function sendAsk(){
+  const t = document.getElementById("chattext");
+  if (!t.value.trim()) return;
+  const r = await fetch("/api/inbox", { method: "POST", body: JSON.stringify({ verb: "ask", key: dkeySlug(), text: t.value }) });
+  if (!r.ok) return void alert("failed: " + await r.text());
+  t.value = ""; t.placeholder = "queued — the loop answers on its next wake (this thread updates live)";
+}
+const VIRTUAL = { "⏱ dev cycle": "cycle.md", "💬 chat": "chat.md" };
 function renderFile(){
   const body = document.getElementById("filebody");
+  if (curFile === "⏱ dev cycle") return void (body.innerHTML = renderCycle(dfiles["cycle.md"]));
+  if (curFile === "💬 chat")     return void (body.innerHTML = renderChat(dfiles["chat.md"]));
   const src = dfiles[curFile] ?? "(empty)";
   if (rawMode) { body.innerHTML = ""; const p = document.createElement("pre"); p.className = "raw"; p.textContent = src; body.appendChild(p); }
   else body.innerHTML = `<div class="mdview">${md(src)}</div>`;
 }
 function renderTabs(){
-  const names = Object.keys(dfiles);
+  const names = Object.keys(dfiles).filter(n => n !== "cycle.md"); // cycle renders via its tab
+  const virt = [];
+  if ("cycle.md" in dfiles) virt.push("⏱ dev cycle");
+  virt.push("💬 chat"); // always offered — first ask creates the thread
   document.getElementById("dtabs").innerHTML =
-    names.map(n=>`<span class="${n===curFile?"on":""}" onclick="pick('${esc(n)}')">${esc(n)}</span>`).join("") +
+    [...virt, ...names.filter(n => n !== "chat.md")].map(n=>`<span class="${n===curFile?"on":""}" onclick="pick('${esc(n)}')">${esc(n)}</span>`).join("") +
     `<span class="rawtoggle ${rawMode?"on":""}" onclick="rawMode=!rawMode;renderTabs();renderFile()">raw</span>`;
 }
 async function openDrawer(key){
@@ -309,8 +371,17 @@ async function sendCommand(){
   setTimeout(() => (t.style.display = "none"), 3500);
 }
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
-// live: any board-dir change → refetch (SSE auto-reconnects)
-new EventSource("/events").onmessage = () => refresh();
+// live: any board-dir change → refetch board AND the open drawer (so a loop reply
+// lands in the chat thread without reopening; typed-but-unsent input is preserved)
+new EventSource("/events").onmessage = async () => {
+  refresh();
+  if (document.getElementById("drawer").classList.contains("open") && dkeySlug()){
+    const draft = document.getElementById("chattext")?.value ?? "";
+    const r = await fetch("/api/ticket/" + encodeURIComponent(dkeySlug()));
+    if (r.ok){ dfiles = (await r.json()).files; renderTabs(); renderFile();
+      const t = document.getElementById("chattext"); if (t && draft) t.value = draft; }
+  }
+};
 refresh();
 </script>
 </body>
