@@ -16,6 +16,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
 
 const args = process.argv.slice(2);
 const arg = (name, dflt) => {
@@ -45,11 +46,20 @@ export function parseBoard(md) {
   const groups = [];
   let g = null;
   let row = null;
+  const clean = (s) =>
+    s.replace(/\[↗\]\([^)]*\)/g, "").replace(/`[^`]*`/g, "").replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
   for (const line of (md ?? "").split("\n")) {
     const h = line.match(/^###\s+(.*)$/);
     if (h) {
       g = { title: h[1].trim(), rows: [] };
       groups.push(g);
+      row = null;
+      continue;
+    }
+    // an h1/h2 ("## State legend", "## Not tracked") ends the group scope — its
+    // bullets are documentation, not board rows (they rendered as ghost rows once)
+    if (/^##?\s/.test(line)) {
+      g = null;
       row = null;
       continue;
     }
@@ -59,7 +69,7 @@ export function parseBoard(md) {
       row = {
         key: r[1].trim(),
         state: (rest.match(/`([^`]+)`/) ?? [])[1] ?? null,
-        next: (rest.split("·").slice(2).join("·") || "").replace(/\[↗\]\([^)]*\)/g, "").replace(/`[^`]*`/g, "").trim() || null,
+        next: clean(rest.split("·").slice(2).join("·")) || null,
         link: (rest.match(/\[↗\]\(([^)]+)\)/) ?? [])[1] ?? null,
         prs: [],
         details: [],
@@ -98,7 +108,11 @@ function boardProjection() {
     state: jsonIf(path.join(BOARD, "system/state.json")), // the loop's heartbeat (may be null)
     lock: readIf(path.join(BOARD, "system/loop.lock")),
     brief: readIf(path.join(BOARD, "brief.md")),
-    logTail: log.split("\n").filter(Boolean).slice(-12),
+    logTail: log
+      .split("\n")
+      .filter(Boolean)
+      .slice(-12)
+      .map((l) => l.replace(/^[-#\s]+/, "").trim()),
   };
 }
 
@@ -140,11 +154,46 @@ try {
   setInterval(broadcast, 5000);
 }
 
+// ── the ONE write path: queue an inbox command, exactly like /update-board ──
+// Never writes any file itself — delegates to system/inbox.sh (the locked appender),
+// so Loopdeck stays a producer, never a second writer of board state. Verbs are
+// whitelisted server-side (same set parse_cmd.sh accepts): a gate can only be an
+// explicit verb, never parsed out of prose (design-review rule).
+const VERBS = new Set(["ingest", "approve", "reject", "changes", "hold", "resume", "retry", "priority", "drop", "ask", "recompute", "note"]);
+const INBOX_SH = [path.join(BOARD, "system/inbox.sh"), path.join(path.dirname(fileURLToPath(import.meta.url)), "../system/inbox.sh")].find((p) => fs.existsSync(p));
+function queueCommand(body, res) {
+  let cmd;
+  try {
+    cmd = JSON.parse(body);
+  } catch {
+    return void res.writeHead(400).end("bad json");
+  }
+  const verb = String(cmd.verb ?? "").toLowerCase();
+  const key = String(cmd.key ?? "").trim();
+  const text = String(cmd.text ?? "").replace(/[\r\n]+/g, " ").trim(); // one command per line, always
+  if (!VERBS.has(verb)) return void res.writeHead(400).end(`unknown verb '${verb}' — allowed: ${[...VERBS].join(" ")}`);
+  // keys like `narvar/denali#3496` are legit (slash + hash), but never `..`
+  if (!/^[\w#/.@-]+$/.test(key) || key.includes("..")) return void res.writeHead(400).end("bad key");
+  if (!INBOX_SH) return void res.writeHead(500).end("system/inbox.sh not found");
+  const line = [verb, key, text].filter(Boolean).join(" ");
+  execFile("bash", [INBOX_SH, "append", "--inbox", path.join(BOARD, "inbox.md"), "--actor", "loopdeck", line], (err, _o, stderr) => {
+    if (err) res.writeHead(500).end(`append failed: ${stderr || err.message}`);
+    else res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ queued: line }));
+  });
+}
+
 // ── http ─────────────────────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://x");
+  if (req.method === "POST" && url.pathname === "/api/inbox") {
+    let body = "";
+    req.on("data", (c) => (body += c).length > 16384 && req.destroy());
+    req.on("end", () => queueCommand(body, res));
+    return;
+  }
   if (req.method !== "GET") {
-    // read-only by construction — no write verb exists on this server
+    // everything else is read-only — /api/inbox above is the ONLY write, and it
+    // only ever appends one inbox line via the locked helper
     res.writeHead(405, { Allow: "GET" }).end("read-only");
     return;
   }

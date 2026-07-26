@@ -8,9 +8,11 @@ node loopdeck/server.mjs --board DIR --port N
 open http://127.0.0.1:4820
 ```
 
-- **Read-only by construction** — every non-GET is 405; there is no write endpoint in
-  this slice. (The future "message the board" modal appends via `system/inbox.sh` and
-  lands only after read-only proves out.)
+- **One write path, and it isn't a writer** — `POST /api/inbox` (the "✉ message the
+  board" modal) appends ONE command line via `system/inbox.sh` (the locked helper),
+  exactly like `/update-board`. Verbs are whitelisted server-side (parse_cmd's set),
+  newlines are stripped (one command per line, no smuggling), and every other non-GET
+  is 405. Loopdeck never touches `board.md`.
 - **Live** — SSE over an `fs.watch` on the board dir; any file change refreshes the view.
 - **One card per ticket** in its least-advanced column, per-PR badges (the engine's
   multi-PR rule; see tickets/loop-kernel decisions).

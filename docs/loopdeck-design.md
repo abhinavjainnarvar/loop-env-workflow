@@ -43,4 +43,4 @@ heartbeat the review asked for (a dead loop reads as dead).
 1. `state.json` emission in orchestrate (engine side, tiny).
 2. Server: watcher + parser + JSON API + WS (read-only first — no inbox write).
 3. SPA: board view → ticket detail → live rail.
-4. Inbox-command modal (the single write path) last, after read-only proves out.
+4. Inbox-command modal (the single write path) — DONE (owner reviewed read-only against the real board first).

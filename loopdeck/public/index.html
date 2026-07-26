@@ -32,7 +32,9 @@
   .card{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:10px;cursor:pointer}
   .card:hover{border-color:#33405a}
   .card .id{font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;justify-content:space-between;gap:6px}
-  .card .nx{font-size:12.5px;margin:7px 0 8px;color:var(--ink)}
+  .card .nx{font-size:12.5px;margin:7px 0 8px;color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .colempty{font-family:var(--mono);font-size:11px;color:var(--faint);border:1px dashed var(--line);border-radius:9px;padding:14px;text-align:center}
   .meta{display:flex;flex-wrap:wrap;gap:5px}
   .pill{font-family:var(--mono);font-size:10px;padding:2.5px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
   .pill.amber{color:var(--amber);border-color:var(--amber-line);background:var(--amber-dim)}
@@ -59,11 +61,30 @@
   #filebody{flex:1;overflow:auto;padding:14px 16px}
   #filebody pre{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:#c7cede}
   .empty{color:var(--faint);font-family:var(--mono);font-size:12px;padding:30px;text-align:center}
+  /* message-the-board modal */
+  .btn{font-family:var(--mono);font-size:12px;padding:6px 13px;border-radius:7px;border:1px solid var(--amber-line);background:var(--amber);color:#1a1206;font-weight:600;cursor:pointer}
+  .btn.ghost{background:none;color:var(--muted);border-color:var(--line)}
+  #shade{position:fixed;inset:0;background:#0009;display:none;z-index:20}
+  #shade.open{display:flex;align-items:flex-start;justify-content:center;padding-top:10vh}
+  .modal{width:min(480px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 30px 70px -20px #000}
+  .modal h4{margin:0;padding:13px 16px;border-bottom:1px solid var(--line);font-size:14px;display:flex;gap:8px;align-items:center}
+  .modal h4 .mk{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .mb{padding:15px 16px}
+  .mb label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);display:block;margin:11px 0 5px}
+  .mb select,.mb input,.mb textarea{width:100%;background:#0e1420;border:1px solid var(--line);border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+  .mb textarea{font-family:inherit;min-height:60px;resize:vertical}
+  .mrow{display:flex;gap:9px}.mrow>div:first-child{flex:0 0 140px}.mrow>div:last-child{flex:1}
+  #mpreview{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:#0c111a;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:7px;padding:10px 12px;margin-top:12px;white-space:pre-wrap;word-break:break-word}
+  #mpreview b{color:var(--amber)}
+  .mf{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--line)}
+  .mf .note{font-size:11.5px;color:var(--faint);flex:1}
+  #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--green-dim);border:1px solid var(--green-line);color:var(--green);font-family:var(--mono);font-size:12px;border-radius:8px;padding:9px 16px;display:none;z-index:30}
 </style>
 </head>
 <body>
 <header>
   <span class="brand">LOOPDECK</span>
+  <button class="btn ghost" onclick="openModal()">✉ message the board</button>
   <span id="hb" class="live"></span>
 </header>
 <main>
@@ -71,10 +92,40 @@
   <aside class="rail" id="rail"></aside>
 </main>
 <div id="drawer">
-  <div class="dh"><b id="dkey"></b><button onclick="closeDrawer()">close</button></div>
+  <div class="dh"><b id="dkey"></b>
+    <button onclick="openModal(document.getElementById('dkey').textContent)" style="margin-left:auto;background:none;border:1px solid var(--amber-line);color:var(--amber);border-radius:6px;padding:4px 10px;cursor:pointer">✉ message</button>
+    <button onclick="closeDrawer()" style="margin-left:8px;background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer">close</button>
+  </div>
   <div class="tabs" id="dtabs"></div>
   <div id="filebody"><pre></pre></div>
 </div>
+
+<div id="shade" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h4>Message the board <span class="mk">→ inbox.md</span></h4>
+    <div class="mb">
+      <div class="mrow">
+        <div><label>Verb</label>
+          <select id="mverb" oninput="mpreview()">
+            <option>note</option><option>ask</option><option>approve</option><option>reject</option>
+            <option>changes</option><option>hold</option><option>resume</option><option>retry</option>
+            <option>priority</option><option>drop</option><option>ingest</option><option>recompute</option>
+          </select>
+        </div>
+        <div><label>Ticket / key</label><input id="mkey" oninput="mpreview()" placeholder="SHOPZ-1234"></div>
+      </div>
+      <label>Message (optional)</label>
+      <textarea id="mtext" oninput="mpreview()" placeholder="context for the loop…"></textarea>
+      <div id="mpreview"></div>
+    </div>
+    <div class="mf">
+      <span class="note">Appends one line via the locked helper; the loop's Monitor applies it.</span>
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="msend" onclick="sendCommand()">Send to board</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
 <script>
 const esc = s => (s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // state string → semantic color (amber = needs the human; blue = machine; …)
@@ -83,7 +134,7 @@ function tone(state){
   if (/^awaiting|needs-human|pr-comments|ask/.test(s)) return "amber";
   if (/building|dispatch|running|triage|pr-ci/.test(s)) return "blue";
   if (/pr-clean|done|merged/.test(s)) return "green";
-  if (/held|parked|backlog/.test(s)) return "violet";
+  if (/held|parked|backlog|deferred/.test(s)) return "violet";
   if (/blocked|conflict|failing/.test(s)) return "red";
   return "";
 }
@@ -104,6 +155,7 @@ async function refresh(){
       c.onclick = () => openDrawer(r.key.split(" ")[0]);
       col.appendChild(c);
     }
+    if (!g.rows.length) col.insertAdjacentHTML("beforeend", `<div class="colempty">empty</div>`);
     cols.appendChild(col);
   }
   if (!d.groups.length) cols.innerHTML = `<div class="empty">no groups found in board.md</div>`;
@@ -148,6 +200,39 @@ function pick(el, name){
 }
 function closeDrawer(){ document.getElementById("drawer").classList.remove("open"); }
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+// message-the-board modal: explicit verb only — a gate is never parsed from prose
+function openModal(key){
+  document.getElementById("mkey").value = (key || "").split(" ")[0];
+  document.getElementById("mtext").value = "";
+  mpreview();
+  document.getElementById("shade").classList.add("open");
+}
+function closeModal(){ document.getElementById("shade").classList.remove("open"); }
+function mline(){
+  const v = document.getElementById("mverb").value, k = document.getElementById("mkey").value.trim(),
+        t = document.getElementById("mtext").value.trim();
+  return [v, k, t].filter(Boolean).join(" ");
+}
+function mpreview(){
+  const el = document.getElementById("mpreview");
+  el.innerHTML = `<b>${esc(document.getElementById("mverb").value)}</b> ${esc(mline().split(" ").slice(1).join(" "))}`;
+}
+async function sendCommand(){
+  const k = document.getElementById("mkey").value.trim();
+  if (!k) return void alert("a ticket/key is required");
+  const btn = document.getElementById("msend"); btn.disabled = true;
+  const r = await fetch("/api/inbox", { method: "POST",
+    body: JSON.stringify({ verb: document.getElementById("mverb").value, key: k,
+                           text: document.getElementById("mtext").value }) });
+  btn.disabled = false;
+  if (!r.ok) return void alert("failed: " + await r.text());
+  closeModal();
+  const t = document.getElementById("toast");
+  t.textContent = "queued → " + (await r.json()).queued;
+  t.style.display = "block";
+  setTimeout(() => (t.style.display = "none"), 3500);
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 // live: any board-dir change → refetch (SSE auto-reconnects)
 new EventSource("/events").onmessage = () => refresh();
 refresh();

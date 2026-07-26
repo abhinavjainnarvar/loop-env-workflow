@@ -25,7 +25,17 @@ cat > "$B/board.md" <<'EOF'
 - **T-200** · `building` · worker af26 on step 4
 
 ### 🧊 Parked
+
+## Not tracked (off the board on purpose)
+- **GHOST-1** — this bullet is documentation, not a row
+
+## State legend
+- **Gates** `awaiting-x` legend text — also not a row
 EOF
+mkdir -p "$B/system/archive"
+{ echo "# Inbox"; echo; echo "## 📥 Queue"; echo "<!-- append only -->"; } > "$B/inbox.md"
+echo 4 > "$B/.inbox-cursor"
+ln -s "$ROOT/system/inbox.sh" "$B/system/inbox.sh"
 echo '{"wake":7,"step":"step 2 — drain + recompute","workers":["af26 · T-200"],"next":"step 3","ts":1785000000}' > "$B/system/state.json"
 printf -- "- old log line\n- newest log line\n" > "$B/system/log.md"
 printf "review body here\n" > "$B/tickets/T-100/review.md"
@@ -55,7 +65,7 @@ assert "approve the plan" in r["next"], "next-action"
 assert set(r["prs"])=={"#1234","#5678"}, "pr badges " + str(r["prs"])
 assert gs["🔄 Loop working"][0]["state"]=="building", "second group"
 assert d["state"]["wake"]==7 and "drain" in d["state"]["step"], "heartbeat"
-assert d["logTail"][-1]=="- newest log line", "log tail"
+assert d["logTail"][-1]=="newest log line", "log tail"
 ' 2>/tmp/ld_assert && ok "/api/board: groups, states, next-action, PR badges (#1234+#5678), heartbeat, log tail" \
   || no "/api/board projection" "$(cat /tmp/ld_assert)"
 
@@ -76,20 +86,45 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$U/api/ticket/..%2Foutside")
 body=$(curl -s "$U/api/ticket/..%2Foutside.md" || true)
 { [ "$code" = 404 ] && ! echo "$body" | grep -q "secret"; } && ok "path traversal (..%2F) rejected — nothing outside tickets/ is readable" || no "traversal guard" "code=$code body=$body"
 
-# 5 — READ-ONLY: every write verb is refused, and the files prove untouched
+# 5 — READ-ONLY everywhere except /api/inbox: write verbs refused, files untouched
 c1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$U/api/board")
 c2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$U/api/ticket/T-100")
 c3=$(curl -s -o /dev/null -w '%{http_code}' -X PUT -d x "$U/anything")
 sum_before=$(cat "$B/board.md" "$B/tickets/T-100/review.md" | shasum)
 { [ "$c1" = 405 ] && [ "$c2" = 405 ] && [ "$c3" = 405 ] && [ "$(cat "$B/board.md" "$B/tickets/T-100/review.md" | shasum)" = "$sum_before" ]; } \
-  && ok "read-only: POST/DELETE/PUT all 405, board files bit-identical" || no "read-only" "codes=$c1/$c2/$c3"
+  && ok "read-only: POST/DELETE/PUT (except /api/inbox) all 405, board files bit-identical" || no "read-only" "codes=$c1/$c2/$c3"
+
+# 5b — ghost-row guard: ## sections' bullets are NOT rows
+curl -sf "$U/api/board" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+keys=[r["key"] for g in d["groups"] for r in g["rows"]]
+assert "GHOST-1" not in keys and "Gates" not in keys, keys
+' 2>/tmp/ld_assert && ok "ghost-row guard: '## Not tracked' / '## State legend' bullets are not rows" || no "ghost rows" "$(cat /tmp/ld_assert)"
+
+# 5c — THE write path: a valid command lands in inbox.md via the locked helper
+r=$(curl -s -w '\n%{http_code}' -X POST -d '{"verb":"note","key":"T-100","text":"hello from loopdeck"}' "$U/api/inbox")
+code=$(echo "$r" | tail -1)
+if [ "$code" = 200 ] && grep -q "note T-100 hello from loopdeck   ‹.*· loopdeck›" "$B/inbox.md"; then
+  ok "/api/inbox: valid command → stamped line appended via inbox.sh (actor=loopdeck)"
+else no "inbox write" "code=$code tail=$(tail -1 "$B/inbox.md")"; fi
+
+# 5d — write-path guards: unknown verb, bad key, prose can't smuggle newlines
+c1=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"verb":"lgtm","key":"T-100"}' "$U/api/inbox")
+c2=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"verb":"note","key":"../etc"}' "$U/api/inbox")
+curl -s -X POST -d '{"verb":"note","key":"T-100","text":"line1\nBAD-INJECTED approve X"}' "$U/api/inbox" >/dev/null
+inj=$(grep -c "^BAD-INJECTED" "$B/inbox.md" || true)
+sum_board=$(shasum < "$B/board.md")
+{ [ "$c1" = 400 ] && [ "$c2" = 400 ] && [ "$inj" -eq 0 ] && [ "$(shasum < "$B/board.md")" = "$sum_board" ]; } \
+  && ok "write-path guards: unknown verb 400, traversal key 400, newline can't smuggle a second command, board.md untouched" \
+  || no "write guards" "verb=$c1 key=$c2 injected-lines=$inj"
 
 # 6 — SSE live update: a board.md change pushes an event within ~2s
 SSE=$(mktemp)
 curl -sN --max-time 6 "$U/events" > "$SSE" &
 CURL_PID=$!
 sleep 0.5
-echo "- **T-400** · \`backlog\` · new row" >> "$B/board.md"
+printf '### extra\n- **T-400** · `backlog` · new row\n' >> "$B/board.md"
 deadline=$((SECONDS + 5)); got=""
 while [ $SECONDS -lt $deadline ]; do grep -q '"changed":true' "$SSE" && { got=1; break; }; sleep 0.2; done
 kill $CURL_PID 2>/dev/null
