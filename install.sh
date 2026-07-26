@@ -10,7 +10,7 @@ REPO="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DST="$HOME/.claude/skills"
 SYSTEM_DST="${BOARD_DIR:-$HOME/planning/boards}/system"
 SKILLS=(orchestrate run-ticket trace-pair add-ticket triage incident retro)
-SCRIPTS=(parse_cmd.sh pr_state.sh risk_floors.sh loop-lock.sh)
+SCRIPTS=(parse_cmd.sh pr_state.sh risk_floors.sh loop-lock.sh inbox.sh reaper.sh)
 MODE="${1:-install}"
 rc=0
 

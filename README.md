@@ -33,12 +33,22 @@ install.sh   symlink the engine into the live locations (idempotent; --check/--u
 
 ## What's built
 - `system/loop-lock.sh` — the single-loop lock (session-identity + TTL lease, atomic
-  `mkdir` mutex, `--force` escape hatch). Fully tested incl. a 20-way race.
-- Wired into `orchestrate` step 1 (acquire on start, renew each wake, stop if evicted).
+  `mkdir` mutex, `--force` escape hatch). Wired as orchestrate step 0 (acquire on
+  start / renew each wake / exit-3 = STOP). Tested incl. a 20-way race.
+- `system/inbox.sh` — race-free inbox: locked `append` + locked byte-exact `archive`
+  (closes the archive/append TOCTOU that destroyed a producer's command). All writers
+  delegate to it (the `board` helper, producers, /update-board); orchestrate 5d uses
+  `archive`. Tested incl. 40 concurrent appends across 7 archive cycles → 0 lost/duped.
+- `system/reaper.sh` — orphaned-worktree audit/cleanup: removes only clean+pushed+old
+  worktrees (dry-run by default; dirty/unpushed → `needs-human`, young → untouched).
+  Wired into orchestrate step 2. Tested on a scratch origin+worktree world.
+- Orchestrate now writes a `system/state.json` heartbeat each wake/step (exact
+  "what's running now" for Loopdeck / a watchdog; stale ts + expired lease = dead loop).
 
 ## Next
-- Inbox TOCTOU fix, worker reaper (the remaining concurrency holes in the review).
-- `state.json` emission + the Loopdeck local server/SPA (`loopdeck/`).
+- Loopdeck (`loopdeck/`): local watcher/parser server + read-only SPA per
+  `docs/loopdeck-design.md` (answer the two-columns data-model question first).
+- Channel-authenticated gate-auth (the remaining prompt-injection full fix).
 
 ## Test
 ```

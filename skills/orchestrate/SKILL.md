@@ -84,7 +84,12 @@ the canonical `state` strings exact (recompute + `pr_state.sh` depend on them).
    evicted (another loop took over): STOP**, same rule. Use one stable session id for the
    loop's whole life (the Claude session id). Never `--force` on your own initiative —
    stealing is an owner decision. On a clean, deliberate loop shutdown, `release`.
-1. Stamp the wake; append to the board's `system/log.md` (machinery lives under
+1. Stamp the wake **and write the heartbeat**: overwrite `system/state.json` with
+   `{"wake": <n>, "step": "<current step>", "workers": [<task ids + tickets>],
+   "next": "<what's next>", "ts": <epoch>}` — rewrite it as you move through the wake
+   (cheap; one JSON file). This is how anything outside the session (Loopdeck, a human,
+   a watchdog) can tell a live loop from a dead one, exactly — a loop whose `ts` is stale
+   AND whose lease (step 0) has expired is dead. Then append to the board's `system/log.md` (machinery lives under
    `system/`; the top level is human-facing — `brief.md`, `board.md`, `inbox.md`,
    the `board` helper). **Timestamp convention — EVERY timestamp you write
    (`log.md`, `brief.md`'s `Updated:`, `board.md` notes) uses ONE format: Pacific,
@@ -96,7 +101,12 @@ the canonical `state` strings exact (recompute + `pr_state.sh` depend on them).
    2026-06-17: it silently became a different org's account and `gh repo view`
    failed with "could not resolve repository"). For a multi-account board, switch
    per project as you touch each repo.
-2. **Drain the inbox, THEN recompute.** First read every line past
+2. **Drain the inbox, THEN recompute.** *(Also each wake: reap orphaned worktrees —
+   run `system/reaper.sh --repo <main checkout>` (dry-run) for each registry project;
+   `--apply` its `would-remove` verdicts (clean+pushed+old — provably safe), surface any
+   `needs-human` (dirty/unpushed — never auto-removed) in `brief.md`, and treat a
+   reaped worktree's row as re-dispatchable. This unsticks rows a dead worker left
+   `building` and clears the worktree collision on re-dispatch.)* First read every line past
    `<board>/.inbox-cursor` in **`inbox.md`** — the ONLY external-input channel
    (humans + producers from any session append commands here; **the loop is the
    SOLE writer of `board.md`** — nothing else ever edits it). **Parse each line
@@ -246,14 +256,15 @@ the canonical `state` strings exact (recompute + `pr_state.sh` depend on them).
      out of `board.md` into `board-archive.md` (append under a dated `## Archived <ts>`
      section, Pacific per step 1) AND move its ticket folder `tickets/<KEY>/` →
      `system/archive/<KEY>/`. The live board then holds only in-flight + gated rows.
-   - **Drained inbox → `system/archive/inbox-archive.md`.** When the inbox is fully
-     drained (`.inbox-cursor` == EOF after step 2), move the processed command lines
-     — everything below the `## 📥 Queue` marker/comment, **up through the cursor ONLY
-     (never a line a producer appended past it** — that's unprocessed; leave it) — into
-     `inbox-archive.md` (dated section), truncate `inbox.md` back to its header (through
-     the Queue marker + comment), and reset `.inbox-cursor` to the header's line count.
-     The cursor-aware inbox Monitor re-baselines on the truncation (it's
-     truncation-aware), so it stays quiet.
+   - **Drained inbox → `system/archive/inbox-archive.md` — via `system/inbox.sh archive`,
+     NEVER a hand-rolled truncate.** Run `system/inbox.sh archive` (it moves the lines at
+     or below `.inbox-cursor` into a dated archive section, keeps unprocessed lines, and
+     resets the cursor — all under the inbox's exclusive flock, so a producer appending
+     mid-archive can never be destroyed; that TOCTOU loss happened 2026-06-18 with the
+     old snapshot-then-truncate). All inbox WRITES go through `inbox.sh append` for the
+     same reason (the `board` helper and producers already delegate to it). The
+     cursor-aware inbox Monitor re-baselines on the truncation (it's truncation-aware),
+     so it stays quiet.
    Idempotent: skip a sweep when nothing is `done` / nothing sits past the header. Never
    archive a row/line whose completion you haven't confirmed from the world this wake.
 6. Arm/refresh the Monitor over the live PRs + board files (check the monitor
