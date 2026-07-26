@@ -9,8 +9,9 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DST="$HOME/.claude/skills"
 SYSTEM_DST="${BOARD_DIR:-$HOME/planning/boards}/system"
-SKILLS=(orchestrate run-ticket trace-pair add-ticket triage incident retro)
+SKILLS=(orchestrate run-ticket trace-pair add-ticket triage incident retro update-board)
 SCRIPTS=(parse_cmd.sh pr_state.sh risk_floors.sh loop-lock.sh inbox.sh reaper.sh)
+PRODUCERS=(board_upsert.py inbox_append.sh poll_jira_assigned.sh poll_pr_watch.sh poll_slack_inbox.sh run_producers.sh)
 MODE="${1:-install}"
 rc=0
 
@@ -40,4 +41,8 @@ echo "skills:";  mkdir -p "$SKILLS_DST"
 for s in "${SKILLS[@]}";  do link_one "$REPO/skills/$s" "$SKILLS_DST/$s"; done
 echo "system:";  mkdir -p "$SYSTEM_DST"
 for f in "${SCRIPTS[@]}"; do link_one "$REPO/system/$f" "$SYSTEM_DST/$f"; done
+echo "producers:";  mkdir -p "$SYSTEM_DST/producers"   # state/ stays live-only (runtime data, never versioned)
+for f in "${PRODUCERS[@]}"; do link_one "$REPO/system/producers/$f" "$SYSTEM_DST/producers/$f"; done
+echo "board helper:"
+link_one "$REPO/board/board" "$(dirname "$SYSTEM_DST")/board"
 exit "$rc"

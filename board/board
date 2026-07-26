@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Append a command to the Narvar board inbox (locked, append-only).
+# Usage: board <approve|reject|hold|resume|retry|priority|drop|changes|ask|ingest> <KEY> [text...]
+# Delegates to system/inbox.sh so appends serialize with the loop's archive
+# (the raw `>>` could be destroyed by a concurrent archive — the TOCTOU).
+set -euo pipefail
+INBOX="${BOARD_INBOX:-$HOME/planning/boards/inbox.md}"
+[ $# -ge 2 ] || { echo "usage: board <verb> <KEY> [text]"; exit 1; }
+"$(dirname "$INBOX")/system/inbox.sh" append --inbox "$INBOX" "$@" >/dev/null
+echo "queued → $*"

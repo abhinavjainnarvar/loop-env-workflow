@@ -23,6 +23,9 @@ install.sh   symlink the engine into the live locations (idempotent; --check/--u
 ```
 
 ## Design decisions (settled)
+
+**Read `docs/principles.md` first** — the one-page canon of every settled rule and
+where each is enforced.
 - **Don't build the full event-sourced kernel** — it hardens a failure that's never
   happened (gate-forgery) and inverts the load-bearing *recompute-from-world* truth
   model. Build the light version + fix the real concurrency/integrity holes. See
