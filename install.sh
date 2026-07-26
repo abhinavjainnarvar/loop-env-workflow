@@ -25,7 +25,11 @@ link_one() {  # link_one <src> <dst>
       if [ -L "$dst" ]; then
         [ "$(readlink "$dst")" = "$src" ] && { echo "  ok      $dst"; return; } || rm "$dst"
       elif [ -e "$dst" ]; then
-        [ -e "$dst.pre-repo" ] || mv "$dst" "$dst.pre-repo"   # keep the first backup only
+        # back up OUTSIDE the target dir — a `.pre-repo` sibling inside
+        # ~/.claude/skills registers as a duplicate skill (observed 2026-07-24)
+        local bak="$HOME/.claude/skills-pre-repo-backup"
+        mkdir -p "$bak"
+        [ -e "$bak/$(basename "$dst")" ] || mv "$dst" "$bak/"   # keep the first backup only
         [ -e "$dst" ] && rm -rf "$dst"
       fi
       ln -s "$src" "$dst"; echo "  linked  $dst -> $src";;
