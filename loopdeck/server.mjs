@@ -98,13 +98,43 @@ const jsonIf = (p) => {
   }
 };
 
+// Human title for a ticket: the H1 of its spec.md (fallback plan.md) — the specs
+// consistently read `# <key> — <human title>`. The board row's slug is for machines;
+// this is what a person recognizes the work by.
+function ticketTitle(key) {
+  const slug = key.split(" ")[0];
+  if (!SAFE_KEY.test(slug)) return null;
+  for (const f of ["spec.md", "plan.md"]) {
+    // NOT readIf — its cap keeps the TAIL (log semantics); a >4KB spec would lose its H1
+    let head = null;
+    try {
+      const fd = fs.openSync(path.join(BOARD, "tickets", slug, f), "r");
+      const buf = Buffer.alloc(4096);
+      const n = fs.readSync(fd, buf, 0, 4096, 0);
+      fs.closeSync(fd);
+      head = buf.toString("utf8", 0, n);
+    } catch { continue; }
+    const h = head.split("\n")[0] ?? "";
+    const m = h.match(/^#\s+(.*)$/);
+    if (!m) continue;
+    let t = m[1].trim();
+    // drop a leading `<key> —` / `<key>:` echo of the slug
+    const pre = t.match(/^(\S+)\s*[—:·-]+\s*(.+)$/);
+    if (pre && pre[1].toLowerCase() === slug.toLowerCase()) t = pre[2].trim();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  return null;
+}
+
 function boardProjection() {
   const md = readIf(path.join(BOARD, "board.md"));
   const log = readIf(path.join(BOARD, "system/log.md")) ?? "";
+  const groups = md === null ? [] : parseBoard(md);
+  for (const g of groups) for (const r of g.rows) r.title = ticketTitle(r.key);
   return {
     generatedAt: new Date().toISOString(),
     board: BOARD,
-    groups: md === null ? [] : parseBoard(md),
+    groups,
     state: jsonIf(path.join(BOARD, "system/state.json")), // the loop's heartbeat (may be null)
     lock: readIf(path.join(BOARD, "system/loop.lock")),
     brief: readIf(path.join(BOARD, "brief.md")),

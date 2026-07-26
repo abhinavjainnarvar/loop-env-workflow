@@ -40,6 +40,8 @@ echo '{"wake":7,"step":"step 2 — drain + recompute","workers":["af26 · T-200"
 printf -- "- old log line\n- newest log line\n" > "$B/system/log.md"
 printf "review body here\n" > "$B/tickets/T-100/review.md"
 printf "plan body here\n"   > "$B/tickets/T-100/plan.md"
+printf "# T-100 — approve flow for the widget\nspec body\n" > "$B/tickets/T-100/spec.md"
+printf "# Phase 9 — a plan-only ticket title\n" > "$B/tickets/T-200/plan.md"
 printf "secret outside tickets\n" > "$B/outside.md"
 
 echo "loopdeck e2e"
@@ -74,7 +76,7 @@ J=$(curl -sf "$U/api/ticket/T-100")
 echo "$J" | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
-assert sorted(d["files"])==["plan.md","review.md"], d["files"].keys()
+assert sorted(d["files"])==["plan.md","review.md","spec.md"], d["files"].keys()
 assert d["files"]["review.md"]=="review body here\n", "verbatim content"
 ' 2>/tmp/ld_assert && ok "/api/ticket/<key>: per-dimension files, verbatim" || no "ticket detail" "$(cat /tmp/ld_assert)"
 
@@ -93,6 +95,16 @@ c3=$(curl -s -o /dev/null -w '%{http_code}' -X PUT -d x "$U/anything")
 sum_before=$(cat "$B/board.md" "$B/tickets/T-100/review.md" | shasum)
 { [ "$c1" = 405 ] && [ "$c2" = 405 ] && [ "$c3" = 405 ] && [ "$(cat "$B/board.md" "$B/tickets/T-100/review.md" | shasum)" = "$sum_before" ]; } \
   && ok "read-only: POST/DELETE/PUT (except /api/inbox) all 405, board files bit-identical" || no "read-only" "codes=$c1/$c2/$c3"
+
+# 5a — human titles: spec.md H1 (key prefix stripped, capitalized); plan.md fallback
+curl -sf "$U/api/board" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+rows={r["key"]:r for g in d["groups"] for r in g["rows"]}
+assert rows["T-100"]["title"]=="Approve flow for the widget", rows["T-100"]["title"]
+assert rows["T-200"]["title"]=="Phase 9 — a plan-only ticket title", rows["T-200"]["title"]
+assert rows["T-300"]["title"] is None, rows["T-300"]["title"]
+' 2>/tmp/ld_assert && ok "human titles: spec H1 (slug prefix stripped) · plan.md fallback · no-spec → null" || no "titles" "$(cat /tmp/ld_assert)"
 
 # 5b — ghost-row guard: ## sections' bullets are NOT rows
 curl -sf "$U/api/board" | python3 -c '

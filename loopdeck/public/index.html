@@ -32,8 +32,9 @@
   .card{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:10px;cursor:pointer}
   .card:hover{border-color:#33405a}
   .card .id{font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;justify-content:space-between;gap:6px}
-  .card .nx{font-size:12.5px;margin:7px 0 8px;color:var(--ink);
-    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .card .ti{font-size:13.5px;font-weight:600;line-height:1.35;margin:7px 0 2px;color:var(--ink)}
+  .card .nx{font-size:12px;margin:4px 0 9px;color:var(--muted);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .colempty{font-family:var(--mono);font-size:11px;color:var(--faint);border:1px dashed var(--line);border-radius:9px;padding:14px;text-align:center}
   .meta{display:flex;flex-wrap:wrap;gap:5px}
   .pill{font-family:var(--mono);font-size:10px;padding:2.5px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
@@ -58,8 +59,29 @@
   .tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px;overflow-x:auto}
   .tabs span{padding:9px 11px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
   .tabs span.on{color:var(--ink);border-bottom-color:var(--amber)}
-  #filebody{flex:1;overflow:auto;padding:14px 16px}
-  #filebody pre{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:#c7cede}
+  #filebody{flex:1;overflow:auto;padding:16px 20px}
+  #filebody pre.raw{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:#c7cede}
+  /* rendered markdown */
+  .mdview{max-width:72ch;font-size:13.5px;line-height:1.65;color:#c7cede}
+  .mdview h1{font-size:17px;color:var(--ink);margin:4px 0 12px;line-height:1.35;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .mdview h2{font-size:14px;color:var(--amber);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;margin:22px 0 8px}
+  .mdview h3{font-size:13.5px;color:var(--ink);margin:16px 0 6px}
+  .mdview p{margin:0 0 10px}
+  .mdview ul,.mdview ol{margin:0 0 10px;padding-left:22px}
+  .mdview li{margin:3px 0}
+  .mdview code{font-family:var(--mono);font-size:11.5px;background:#0e1420;border:1px solid var(--line-soft);border-radius:4px;padding:1px 5px;color:#9fc1ff}
+  .mdview pre{background:#0c111a;border:1px solid var(--line);border-radius:8px;padding:11px 13px;overflow-x:auto;margin:0 0 10px}
+  .mdview pre code{background:none;border:0;padding:0;color:#c7cede;font-size:11.5px;line-height:1.5}
+  .mdview b,.mdview strong{color:var(--ink)}
+  .mdview a{color:var(--amber);text-decoration:none}
+  .mdview a:hover{text-decoration:underline}
+  .mdview blockquote{margin:0 0 10px;padding:6px 12px;border-left:3px solid var(--violet-line);color:var(--muted)}
+  .mdview hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+  .mdview table{border-collapse:collapse;margin:0 0 12px;font-size:12.5px}
+  .mdview th,.mdview td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+  .mdview th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:#0e1420}
+  .rawtoggle{margin-left:auto;align-self:center;font-family:var(--mono);font-size:10px;color:var(--faint);cursor:pointer;padding:4px 9px;border:1px solid var(--line);border-radius:5px}
+  .rawtoggle.on{color:var(--amber);border-color:var(--amber-line)}
   .empty{color:var(--faint);font-family:var(--mono);font-size:12px;padding:30px;text-align:center}
   /* message-the-board modal */
   .btn{font-family:var(--mono);font-size:12px;padding:6px 13px;border-radius:7px;border:1px solid var(--amber-line);background:var(--amber);color:#1a1206;font-weight:600;cursor:pointer}
@@ -150,7 +172,8 @@ async function refresh(){
       const c = document.createElement("div"); c.className = "card";
       c.innerHTML = `
         <div class="id"><span>${esc(r.key)}</span><span>${r.prs.slice(0,4).map(esc).join(" ")}</span></div>
-        <div class="nx">${esc(r.next || "")}</div>
+        <div class="ti">${esc(r.title || r.next || r.key)}</div>
+        ${r.title && r.next ? `<div class="nx">${esc(r.next)}</div>` : ""}
         <div class="meta">${r.state ? `<span class="pill ${tone(r.state)}">${esc(r.state)}</span>` : ""}</div>`;
       c.onclick = () => openDrawer(r.key.split(" ")[0]);
       col.appendChild(c);
@@ -176,28 +199,81 @@ async function refresh(){
   rail.innerHTML += `<h3>Lock</h3><div class="box"><pre style="margin:0;font:10.5px var(--mono);color:var(--muted);white-space:pre-wrap">${esc(d.lock ?? "board free (no loop.lock)")}</pre></div>`;
   rail.innerHTML += `<h3>Log tail</h3><div class="box">${(d.logTail||[]).map(l=>`<div class="logline" title="${esc(l)}">${esc(l)}</div>`).join("")}</div>`;
 }
-// drawer: the ticket's own files, verbatim — no summarizing layer
-let dfiles = {};
+// ── tiny markdown renderer — LOSSLESS formatting of the verbatim files ──
+// (rendering ≠ distillation: the content is exact, only presentation changes.
+//  escape-first, then transform — so file content can never inject HTML.)
+function md(src){
+  const codes = [];
+  let s = esc(src ?? "");
+  s = s.replace(/```([\s\S]*?)```/g, (_, c) => { codes.push(c.replace(/^\n|\n$/g, "")); return `\uE000${codes.length - 1}\uE000`; });
+  const inline = t => t
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|\s)_([^_]+)_(?=\s|[.,;:!?)]|$)/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\[([^\]]+)\]\([^)\s]*\)/g, "$1");
+  const lines = s.split("\n"), out = [];
+  let list = null, table = null;
+  const flushList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const flushTable = () => { if (table) { out.push("</table>"); table = null; } };
+  for (const raw of lines){
+    const l = raw;
+    const h = l.match(/^(#{1,4})\s+(.*)$/);
+    if (h){ flushList(); flushTable(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
+    if (/^\s*---+\s*$/.test(l)){ flushList(); flushTable(); out.push("<hr>"); continue; }
+    if (/^\|/.test(l.trim())){
+      flushList();
+      const cells = l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      if (cells.every(c => /^:?-{2,}:?$/.test(c))) continue;              // the |---| separator row
+      if (!table){ table = true; out.push("<table>"); out.push(`<tr>${cells.map(c=>`<th>${inline(c)}</th>`).join("")}</tr>`); }
+      else out.push(`<tr>${cells.map(c=>`<td>${inline(c)}</td>`).join("")}</tr>`);
+      continue;
+    }
+    flushTable();
+    const li = l.match(/^\s*([-*]|\d+\.)\s+(.*)$/);
+    if (li){
+      const kind = /\d/.test(li[1]) ? "ol" : "ul";
+      if (list !== kind){ flushList(); out.push(`<${kind}>`); list = kind; }
+      out.push(`<li>${inline(li[2])}</li>`); continue;
+    }
+    flushList();
+    if (/^&gt;\s?/.test(l.trim())){ out.push(`<blockquote>${inline(l.trim().replace(/^&gt;\s?/, ""))}</blockquote>`); continue; }
+    if (l.trim() === ""){ continue; }
+    out.push(`<p>${inline(l)}</p>`);
+  }
+  flushList(); flushTable();
+  return out.join("\n").replace(/\uE000(\d+)\uE000/g, (_, i) => `<pre><code>${codes[+i]}</code></pre>`);
+}
+
+// drawer: the ticket's own files, verbatim — rendered (raw toggle available)
+let dfiles = {}, rawMode = false, curFile = null;
+function renderFile(){
+  const body = document.getElementById("filebody");
+  const src = dfiles[curFile] ?? "(empty)";
+  if (rawMode) { body.innerHTML = ""; const p = document.createElement("pre"); p.className = "raw"; p.textContent = src; body.appendChild(p); }
+  else body.innerHTML = `<div class="mdview">${md(src)}</div>`;
+}
+function renderTabs(){
+  const names = Object.keys(dfiles);
+  document.getElementById("dtabs").innerHTML =
+    names.map(n=>`<span class="${n===curFile?"on":""}" onclick="pick('${esc(n)}')">${esc(n)}</span>`).join("") +
+    `<span class="rawtoggle ${rawMode?"on":""}" onclick="rawMode=!rawMode;renderTabs();renderFile()">raw</span>`;
+}
 async function openDrawer(key){
   const r = await fetch("/api/ticket/" + encodeURIComponent(key));
-  const drawer = document.getElementById("drawer");
   document.getElementById("dkey").textContent = key;
-  const tabs = document.getElementById("dtabs");
-  const body = document.querySelector("#filebody pre");
-  if (!r.ok){ dfiles = {}; tabs.innerHTML = ""; body.textContent = "(no tickets/" + key + "/ folder)"; }
+  if (!r.ok){ dfiles = {}; curFile = null; renderTabs(); document.getElementById("filebody").innerHTML = `<div class="empty">(no tickets/${esc(key)}/ folder)</div>`; }
   else {
     dfiles = (await r.json()).files;
+    // lead with the human-facing files when present
     const names = Object.keys(dfiles);
-    tabs.innerHTML = names.map((n,i)=>`<span class="${i?"":"on"}" onclick="pick(this,'${esc(n)}')">${esc(n)}</span>`).join("");
-    body.textContent = names.length ? dfiles[names[0]] : "(empty)";
+    const pref = ["spec.md","plan.md","review.md","decisions.md","journal.md","cycle.md"];
+    curFile = pref.find(p=>names.includes(p)) ?? names[0] ?? null;
+    renderTabs(); renderFile();
   }
-  drawer.classList.add("open");
+  document.getElementById("drawer").classList.add("open");
 }
-function pick(el, name){
-  document.querySelectorAll("#dtabs span").forEach(s=>s.classList.remove("on"));
-  el.classList.add("on");
-  document.querySelector("#filebody pre").textContent = dfiles[name] ?? "";
-}
+function pick(name){ curFile = name; renderTabs(); renderFile(); }
 function closeDrawer(){ document.getElementById("drawer").classList.remove("open"); }
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
 // message-the-board modal: explicit verb only — a gate is never parsed from prose
