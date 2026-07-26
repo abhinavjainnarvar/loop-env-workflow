@@ -1,0 +1,11 @@
+# live runtime state lives in ~/planning/boards, never here
+*.lock
+.loop-lock.mutex/
+*.tmp.*
+
+# test scratch
+tests/tmp/
+
+# macOS / editor
+.DS_Store
+*.swp
