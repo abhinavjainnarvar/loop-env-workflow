@@ -33,7 +33,7 @@ heartbeat the review asked for (a dead loop reads as dead).
    Per-ticket chat = notes/read view + explicit action buttons.
 2. **No "journal/decisions distilled from this thread" (LLM distillation).** Journal and
    decisions views render the actual files (typed events / hand-written audit), lossless.
-3. **The two-columns question must be answered first**: the wireframe draws SHOPZ-5056 in
+3. **The two-columns question — ANSWERED (see tickets/loop-kernel decisions, 2026-07-25)**: one card per ticket in its least-advanced column (the engine's existing multi-PR rule), per-PR badges on the card. Original framing: the wireframe draws SHOPZ-5056 in
    "Needs you" AND "Held" at once. Decide: can one ticket be in two states (e.g. two PRs
    in flight)? Options: (a) one state per ticket, sub-badges for per-PR states;
    (b) card-per-PR grouped by ticket. Blocker for the board view's data model.

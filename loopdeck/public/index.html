@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loopdeck</title>
+<style>
+  :root{
+    --ground:#0b0e14; --panel:#121722; --panel2:#1a2130; --line:#283041; --line-soft:#1d2533;
+    --ink:#e9edf5; --muted:#8c95a8; --faint:#5a6378;
+    --amber:#f0a830; --amber-dim:#332912; --amber-line:#5e4a1d;
+    --blue:#5b93f5;  --blue-dim:#152339;  --blue-line:#2b456f;
+    --green:#46b85f; --green-dim:#14301d; --green-line:#235a36;
+    --violet:#9a7bf0;--violet-dim:#231d3a;--violet-line:#3f3168;
+    --red:#ef5d52;   --red-dim:#371a18;   --red-line:#6e2d29;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:12px 18px;border-bottom:1px solid var(--line);background:#0e1420;position:sticky;top:0;z-index:5}
+  .brand{font-family:var(--mono);font-weight:700;letter-spacing:.24em;color:var(--amber);font-size:12px}
+  .live{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto;display:flex;gap:14px;align-items:center}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+  .dot.on{background:var(--blue);box-shadow:0 0 0 3px var(--blue-dim)}
+  .dot.off{background:var(--faint)}
+  main{display:grid;grid-template-columns:1fr 300px;gap:0;min-height:calc(100vh - 49px)}
+  .cols{display:flex;gap:0;align-items:flex-start;overflow-x:auto;border-right:1px solid var(--line)}
+  .col{flex:1;min-width:250px;border-right:1px solid var(--line-soft);padding:13px 12px;align-self:stretch}
+  .col:last-child{border-right:0}
+  .col-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;display:flex;gap:7px}
+  .col-h .ct{margin-left:auto;color:var(--faint)}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:10px;cursor:pointer}
+  .card:hover{border-color:#33405a}
+  .card .id{font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;justify-content:space-between;gap:6px}
+  .card .nx{font-size:12.5px;margin:7px 0 8px;color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:5px}
+  .pill{font-family:var(--mono);font-size:10px;padding:2.5px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .pill.amber{color:var(--amber);border-color:var(--amber-line);background:var(--amber-dim)}
+  .pill.blue{color:var(--blue);border-color:var(--blue-line);background:var(--blue-dim)}
+  .pill.green{color:var(--green);border-color:var(--green-line);background:var(--green-dim)}
+  .pill.violet{color:var(--violet);border-color:var(--violet-line);background:var(--violet-dim)}
+  .pill.red{color:var(--red);border-color:var(--red-line);background:var(--red-dim)}
+  .rail{background:#0e1420;padding:15px;display:flex;flex-direction:column;gap:14px}
+  .rail h3{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0}
+  .box{border:1px solid var(--line);border-radius:9px;padding:11px 12px;background:var(--panel)}
+  .box.hot{border-color:var(--blue-line);background:var(--blue-dim)}
+  .box .k{font-family:var(--mono);font-size:11px;color:var(--blue)}
+  .box .v{font-size:13px;margin-top:4px}
+  .logline{font-family:var(--mono);font-size:10.5px;color:var(--faint);padding:2px 0;border-bottom:1px solid var(--line-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* drawer */
+  #drawer{position:fixed;inset:0 0 0 auto;width:min(760px,92vw);background:var(--panel);border-left:1px solid var(--line);transform:translateX(102%);transition:transform .18s ease;z-index:10;display:flex;flex-direction:column}
+  #drawer.open{transform:none}
+  #drawer .dh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  #drawer .dh b{font-family:var(--mono);color:var(--amber)}
+  #drawer .dh button{margin-left:auto;background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer}
+  .tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px;overflow-x:auto}
+  .tabs span{padding:9px 11px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  .tabs span.on{color:var(--ink);border-bottom-color:var(--amber)}
+  #filebody{flex:1;overflow:auto;padding:14px 16px}
+  #filebody pre{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:#c7cede}
+  .empty{color:var(--faint);font-family:var(--mono);font-size:12px;padding:30px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">LOOPDECK</span>
+  <span id="hb" class="live"></span>
+</header>
+<main>
+  <div class="cols" id="cols"><div class="empty">loading board…</div></div>
+  <aside class="rail" id="rail"></aside>
+</main>
+<div id="drawer">
+  <div class="dh"><b id="dkey"></b><button onclick="closeDrawer()">close</button></div>
+  <div class="tabs" id="dtabs"></div>
+  <div id="filebody"><pre></pre></div>
+</div>
+<script>
+const esc = s => (s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// state string → semantic color (amber = needs the human; blue = machine; …)
+function tone(state){
+  const s = (state||"").toLowerCase();
+  if (/^awaiting|needs-human|pr-comments|ask/.test(s)) return "amber";
+  if (/building|dispatch|running|triage|pr-ci/.test(s)) return "blue";
+  if (/pr-clean|done|merged/.test(s)) return "green";
+  if (/held|parked|backlog/.test(s)) return "violet";
+  if (/blocked|conflict|failing/.test(s)) return "red";
+  return "";
+}
+async function refresh(){
+  const d = await (await fetch("/api/board")).json();
+  // columns
+  const cols = document.getElementById("cols");
+  cols.innerHTML = "";
+  for (const g of d.groups){
+    const col = document.createElement("div"); col.className = "col";
+    col.innerHTML = `<div class="col-h">${esc(g.title)}<span class="ct">${g.rows.length}</span></div>`;
+    for (const r of g.rows){
+      const c = document.createElement("div"); c.className = "card";
+      c.innerHTML = `
+        <div class="id"><span>${esc(r.key)}</span><span>${r.prs.slice(0,4).map(esc).join(" ")}</span></div>
+        <div class="nx">${esc(r.next || "")}</div>
+        <div class="meta">${r.state ? `<span class="pill ${tone(r.state)}">${esc(r.state)}</span>` : ""}</div>`;
+      c.onclick = () => openDrawer(r.key.split(" ")[0]);
+      col.appendChild(c);
+    }
+    cols.appendChild(col);
+  }
+  if (!d.groups.length) cols.innerHTML = `<div class="empty">no groups found in board.md</div>`;
+  // heartbeat header
+  const st = d.state;
+  document.getElementById("hb").innerHTML = st
+    ? `<span><span class="dot on"></span>wake ${esc(String(st.wake ?? "?"))} · ${esc(st.step ?? "")}</span>`
+    : `<span><span class="dot off"></span>no heartbeat (loop not running or pre-state.json)</span>`;
+  // rail
+  const rail = document.getElementById("rail");
+  rail.innerHTML = `<h3>Live loop</h3>`;
+  rail.innerHTML += st
+    ? `<div class="box hot"><div class="k">RUNNING — wake ${esc(String(st.wake ?? "?"))}</div>
+       <div class="v">${esc(st.step ?? "")}</div>
+       <div class="v" style="color:var(--muted)">next → ${esc(st.next ?? "?")}</div>
+       ${(st.workers||[]).map(w=>`<div class="v" style="font-family:var(--mono);font-size:11px;color:var(--blue)">⟳ ${esc(typeof w==="string"?w:JSON.stringify(w))}</div>`).join("")}</div>`
+    : `<div class="box"><div class="v" style="color:var(--faint)">no state.json heartbeat</div></div>`;
+  rail.innerHTML += `<h3>Lock</h3><div class="box"><pre style="margin:0;font:10.5px var(--mono);color:var(--muted);white-space:pre-wrap">${esc(d.lock ?? "board free (no loop.lock)")}</pre></div>`;
+  rail.innerHTML += `<h3>Log tail</h3><div class="box">${(d.logTail||[]).map(l=>`<div class="logline" title="${esc(l)}">${esc(l)}</div>`).join("")}</div>`;
+}
+// drawer: the ticket's own files, verbatim — no summarizing layer
+let dfiles = {};
+async function openDrawer(key){
+  const r = await fetch("/api/ticket/" + encodeURIComponent(key));
+  const drawer = document.getElementById("drawer");
+  document.getElementById("dkey").textContent = key;
+  const tabs = document.getElementById("dtabs");
+  const body = document.querySelector("#filebody pre");
+  if (!r.ok){ dfiles = {}; tabs.innerHTML = ""; body.textContent = "(no tickets/" + key + "/ folder)"; }
+  else {
+    dfiles = (await r.json()).files;
+    const names = Object.keys(dfiles);
+    tabs.innerHTML = names.map((n,i)=>`<span class="${i?"":"on"}" onclick="pick(this,'${esc(n)}')">${esc(n)}</span>`).join("");
+    body.textContent = names.length ? dfiles[names[0]] : "(empty)";
+  }
+  drawer.classList.add("open");
+}
+function pick(el, name){
+  document.querySelectorAll("#dtabs span").forEach(s=>s.classList.remove("on"));
+  el.classList.add("on");
+  document.querySelector("#filebody pre").textContent = dfiles[name] ?? "";
+}
+function closeDrawer(){ document.getElementById("drawer").classList.remove("open"); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+// live: any board-dir change → refetch (SSE auto-reconnects)
+new EventSource("/events").onmessage = () => refresh();
+refresh();
+</script>
+</body>
+</html>
