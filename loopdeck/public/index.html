@@ -162,7 +162,7 @@
       <div id="mpreview"></div>
     </div>
     <div class="mf">
-      <span class="note">Appends one line via the locked helper; the loop's Monitor applies it.</span>
+      <span class="note" id="mnote">Appends one line via the locked helper.</span>
       <button class="btn ghost" onclick="closeModal()">Cancel</button>
       <button class="btn" id="msend" onclick="sendCommand()">Send to board</button>
     </div>
@@ -203,8 +203,11 @@ async function refresh(){
     cols.appendChild(col);
   }
   if (!d.groups.length) cols.innerHTML = `<div class="empty">no groups found in board.md</div>`;
-  // heartbeat header
+  // heartbeat header (+ liveness: fresh heartbeat OR fresh lease, within the 45m TTL)
   const st = d.state;
+  const leaseTs = Number((d.lock ?? "").match(/renewed=(\d+)/)?.[1] ?? 0);
+  const nowS = Date.now() / 1000;
+  loopLive = !!(st && st.ts && nowS - st.ts < 2700) || (leaseTs > 0 && nowS - leaseTs < 2700);
   document.getElementById("hb").innerHTML = st
     ? `<span><span class="dot on"></span>wake ${esc(String(st.wake ?? "?"))} · ${esc(st.step ?? "")}</span>`
     : `<span><span class="dot off"></span>no heartbeat (loop not running or pre-state.json)</span>`;
@@ -339,10 +342,19 @@ function pick(name){ curFile = name; renderTabs(); renderFile(); }
 function closeDrawer(){ document.getElementById("drawer").classList.remove("open"); }
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
 // message-the-board modal: explicit verb only — a gate is never parsed from prose
+let loopLive = false; // derived from the heartbeat+lease each refresh
 function openModal(key){
   document.getElementById("mkey").value = (key || "").split(" ")[0];
   document.getElementById("mtext").value = "";
   mpreview();
+  // honesty about delivery: a queued command is DURABLE either way, but only a
+  // live loop applies it promptly (learned the hard way — a dead monitor once
+  // sat on a command silently until the owner asked why nothing happened)
+  const n = document.getElementById("mnote");
+  n.textContent = loopLive
+    ? "Appends one line via the locked helper; the live loop applies it within a wake."
+    : "⚠ No live loop detected (no fresh heartbeat/lease) — the command queues durably and is applied when a loop next runs.";
+  n.style.color = loopLive ? "" : "var(--amber)";
   document.getElementById("shade").classList.add("open");
 }
 function closeModal(){ document.getElementById("shade").classList.remove("open"); }
