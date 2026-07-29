@@ -29,11 +29,20 @@ echo "voice-lint (${SURFACE})"
 # --- absolute tells (0% in 2,800 samples) ---
 m=$(has '—|–')            && flag "em/en dash — he has never written one; use a comma or full stop" "$m"
 m=$(has '^#{1,6} ')       && flag "markdown header — 0% of his messages" "$m"
-m=$(has '^```')           && flag "code fence — 0% of his messages" "$m"
 m=$(has '^\|.*\|')        && flag "table — he writes none" "$m"
 m=$(has '\*\*[^*]+\*\*')  && flag "bold — structure comes from a second sentence, not formatting" "$m"
-m=$(has '!')              && flag "exclamation mark — 0 in his own prose" "$m"
-m=$(has '[😀-🿿✅❌⚠🔴🟡🟢]') && flag "emoji — not his" "$m"
+m=$(has '^\s*[-*] ')      && flag "bullet list — 0 bullets in 360 PR comments and 2,224 messages" "$m"
+# code fences are his ONLY on PR comments (17.8%: untagged pseudo-code / suggestion blocks)
+if [ "$SURFACE" != "pr" ]; then
+  m=$(has '^```') && flag "code fence — 0% outside PR comments" "$m"
+fi
+# `!` and 👍🙏🥳 are genuinely his in a PR review body ("LGTM!"), nowhere else
+if [ "$SURFACE" != "pr" ]; then
+  m=$(has '!')                  && flag "exclamation mark — 0 in his prose outside PR review bodies" "$m"
+  m=$(has '[😀-🿿✅❌⚠🔴🟡🟢]') && flag "emoji — only 👍🙏🥳 in a PR review body, never elsewhere" "$m"
+else
+  m=$(has '[✅❌⚠🔴🟡🟢🚀]|:shipit:') && flag "status/rocket emoji — his PR repertoire is only 👍 🙏 🥳" "$m"
+fi
 
 # --- vocabulary he never uses ---
 m=$(has '\b(kindly|as per|do the needful|revert back|could you)\b') \
@@ -42,7 +51,9 @@ m=$(has '\b(delve|leverage|seamless|robust|furthermore|moreover|utilise|utilize|
   && flag "heavy word — he asks for words engineers use daily" "$m"
 m=$(has "I'd be happy to|great question|Let me know if you have any|I hope this helps") \
   && flag "assistant filler" "$m"
-m=$(has '\bLGTM\b')       && flag "LGTM — 0 occurrences; he approves in plain words" "$m"
+if [ "$SURFACE" != "pr" ]; then
+  m=$(has '\bLGTM\b') && flag "LGTM — 0 occurrences outside PR comments" "$m"
+fi
 m=$(has "let's")          && flag "let's — he writes 'lets' (216 vs 3)" "$m"
 
 # --- agent formulas ---
@@ -66,9 +77,22 @@ esac
 
 # --- surface-specific ---
 if [ "$SURFACE" = "pr" ]; then
-  printf '%s' "$SRC" | grep -qiE "not sure|i'm assuming|i am assuming|was this intentional|let me know|your call|what do you think|thoughts" \
-    || flag "peer-facing but never hedges or hands the decision back" \
-            "his review register: state it, give the reason, then 'Let me know what you think'"
+  # He hedges STRUCTURALLY: a question, collective "we", or an explicit non-blocking label.
+  # Lexical hedges are only 7.8% — requiring them would push drafts to the rare pattern.
+  # bare imperatives ("Redundant", "Use spinner instead") are his 6% register on style
+  # mechanics — too short to carry a frame, so don't nag them
+  IS_TERSE=0; [ "$words" -le 6 ] && IS_TERSE=1
+  IS_APPROVAL=0
+  printf '%s' "$SRC" | grep -qiE '\b(lgtm|looks good|approving|approved with)\b' && IS_APPROVAL=1
+  [ "$IS_APPROVAL" -eq 0 ] && [ "$IS_TERSE" -eq 0 ] && ! printf '%s' "$SRC" | grep -qiE '\?|\b(can we|should we|do we|shall we|lets|nit:)\b|not a big deal|non.?blocking|maybe for later' \
+    && flag "peer-facing with no structural hedge" \
+            "make it a question, or say 'we' instead of 'you', or label it 'nit:' — don't reach for 'not sure'"
+  printf '%s' "$SRC" | grep -qiE "\byour call\b" \
+    && flag "'your call' — never appears in 360 of his PR comments" ""
+  printf '%s' "$SRC" | grep -qiE "\byou (should|need to|must|have to)\b|\byour code\b" \
+    && flag "second-person directive — he uses 'we' (42%) over 'you' (6%)" ""
+  printf '%s' "$SRC" | grep -qiE "\bgood catch\b" \
+    && flag "'Good catch' is something he receives, not gives" ""
 fi
 if [ "$SURFACE" = "commit" ] && [ "$lines" -gt 1 ]; then
   flag "commit body present — 346 of his 414 commits have none" "subject only, unless there is a non-obvious why"
