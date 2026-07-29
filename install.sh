@@ -9,7 +9,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DST="$HOME/.claude/skills"
 SYSTEM_DST="${BOARD_DIR:-$HOME/planning/boards}/system"
-SKILLS=(orchestrate run-ticket trace-pair add-ticket triage incident retro update-board)
+SKILLS=(orchestrate run-ticket trace-pair add-ticket triage incident retro update-board voice)
 SCRIPTS=(parse_cmd.sh pr_state.sh risk_floors.sh loop-lock.sh inbox.sh reaper.sh)
 PRODUCERS=(board_upsert.py inbox_append.sh poll_jira_assigned.sh poll_pr_watch.sh poll_slack_inbox.sh run_producers.sh)
 MODE="${1:-install}"
