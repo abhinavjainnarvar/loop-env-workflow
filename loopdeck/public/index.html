@@ -155,7 +155,8 @@
             <option>priority</option><option>drop</option><option>ingest</option><option>recompute</option>
           </select>
         </div>
-        <div><label>Ticket / key</label><input id="mkey" oninput="mpreview()" placeholder="SHOPZ-1234"></div>
+        <div><label>Ticket / key</label><input id="mkey" oninput="mpreview()" placeholder="SHOPZ-1234">
+          <div id="mkeyhint" style="display:none;font-family:var(--mono);font-size:10.5px;color:var(--amber);margin-top:5px"></div></div>
       </div>
       <label>Message (optional)</label>
       <textarea id="mtext" oninput="mpreview()" placeholder="context for the loop…"></textarea>
@@ -363,13 +364,33 @@ function mline(){
         t = document.getElementById("mtext").value.trim();
   return [v, k, t].filter(Boolean).join(" ");
 }
+const KEY_OK = /^[\w#/.@-]+$/;
+// a key is ONE token — live-validate and, for the common space mistake, offer the
+// hyphenated fix as one click (learned from a real "rollbar 41575" bounce)
+function keyCheck(){
+  const inp = document.getElementById("mkey"), hint = document.getElementById("mkeyhint");
+  const k = inp.value.trim();
+  const suggestion = k.replace(/\s+/g, "-");
+  const ok = !k || (KEY_OK.test(k) && !k.includes(".."));
+  inp.style.borderColor = ok ? "" : "var(--amber)";
+  if (!ok && /\s/.test(k) && KEY_OK.test(suggestion)) {
+    hint.style.display = "block";
+    hint.innerHTML = `keys are one token — <a href="#" style="color:var(--amber)" onclick="document.getElementById('mkey').value='${esc(suggestion)}';keyCheck();mpreview();return false">use ${esc(suggestion)}</a>`;
+  } else if (!ok) {
+    hint.style.display = "block";
+    hint.textContent = "keys are one token: letters/digits/#/x.y/@/- (no spaces)";
+  } else hint.style.display = "none";
+  return ok && !!k;
+}
 function mpreview(){
+  keyCheck();
   const el = document.getElementById("mpreview");
   el.innerHTML = `<b>${esc(document.getElementById("mverb").value)}</b> ${esc(mline().split(" ").slice(1).join(" "))}`;
 }
 async function sendCommand(){
   const k = document.getElementById("mkey").value.trim();
   if (!k) return void alert("a ticket/key is required");
+  if (!keyCheck()) return; // inline hint already explains (and offers the fix)
   const btn = document.getElementById("msend"); btn.disabled = true;
   const r = await fetch("/api/inbox", { method: "POST",
     body: JSON.stringify({ verb: document.getElementById("mverb").value, key: k,

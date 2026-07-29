@@ -203,7 +203,8 @@ function queueCommand(body, res) {
   const text = String(cmd.text ?? "").replace(/[\r\n]+/g, " ").trim(); // one command per line, always
   if (!VERBS.has(verb)) return void res.writeHead(400).end(`unknown verb '${verb}' — allowed: ${[...VERBS].join(" ")}`);
   // keys like `narvar/denali#3496` are legit (slash + hash), but never `..`
-  if (!/^[\w#/.@-]+$/.test(key) || key.includes("..")) return void res.writeHead(400).end("bad key");
+  if (!/^[\w#/.@-]+$/.test(key) || key.includes(".."))
+    return void res.writeHead(400).end(`bad key '${key}' — a key is one token (letters/digits/#/x.y/@/-, no spaces); e.g. rollbar-41575, SHOPZ-1234, repo#123`);
   if (!INBOX_SH) return void res.writeHead(500).end("system/inbox.sh not found");
   const line = [verb, key, text].filter(Boolean).join(" ");
   execFile("bash", [INBOX_SH, "append", "--inbox", path.join(BOARD, "inbox.md"), "--actor", "loopdeck", line], (err, _o, stderr) => {
