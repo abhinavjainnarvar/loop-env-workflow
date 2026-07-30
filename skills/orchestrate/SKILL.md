@@ -212,6 +212,14 @@ the canonical `state` strings exact (recompute + `pr_state.sh` depend on them).
    - INCIDENT row (Rollbar/prod) → the **`incident`** skill — fix-first → prove →
      prod sign-off → write-up (NOT the plan-first build pipeline).
    Each returns a TERSE one-line result; integrate one line each into board + log.
+   **SYNC THE OWNER'S CHECKOUT after integrating a push.** Workers build in detached
+   worktrees and push `HEAD:<branch>`, which leaves the owner's own checkout behind — twice
+   that gap presented his tree as staged reverts of the worker's fixes. Run
+   `system/sync-checkout.sh --repo <checkout> --branch <branch>` (add `--remote https://…`
+   where ssh is broken). It fast-forwards ONLY when he is on that branch, the tree and index
+   are clean, and it is strictly behind; it refuses on dirty/diverged/other-branch and prints
+   why. **Relay a refusal to him with the command he needs — never resolve it for him**
+   (no reset, no rebase, no stash of his work).
    **VERIFY-BEFORE-INTEGRATE — never trust a worker's self-report:** (a) recompute the
    PR/row state from the world before recording it; (b) spot-check any factual claim the
    worker makes about the env/codebase against the actual files (self-reports can be
